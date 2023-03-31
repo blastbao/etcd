@@ -406,7 +406,6 @@ func (rc *raftNode) writeError(err error) {
 //	- 启动网络组件，其中会监听当前节点与集群中其他节点之间的网络连接，并进行节点之间的消息读写
 //	- 启动两个后台的 goroutine，它们主要工作是处理上层模块与底层 etcd-raft 模块的交互，但处理的具体内容不同，后面会详细介绍这两个 goroutine 的处理流程。
 func (rc *raftNode) startRaft() {
-
 	// 首先，startRaft 方法检查快照目录是否存在，该目录用于存放定期生成的快照数据；
 	// 如果不存在则进行创建，然后创建基于该目录的快照管理器，若创建失败，则输出异常日志并终止程序。
 	if !fileutil.Exist(rc.snapdir) {
