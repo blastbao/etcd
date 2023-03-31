@@ -523,8 +523,6 @@ func (rc *raftNode) publishSnapshot(snapshotToSave raftpb.Snapshot) {
 
 var snapshotCatchUpEntriesN uint64 = 10000
 
-
-
 // [快照管理]
 // 快照(snapshot)本质是对日志进行压缩，它是对状态机某一时刻（或者日志的某一索引）的状态的保存。
 // 快照操作可以缓解日志文件无限制增长的问题，一旦达日志项达到某一临界值，可以将内存的状态数据进行压缩成为 snapshot 文件并存储在快照目录。
@@ -534,6 +532,7 @@ var snapshotCatchUpEntriesN uint64 = 10000
 //  - 另外一个为快照的索引数据，即当前快照的索引信息，换言之，即记录下当前已经被执行快照的日志的索引编号，
 //    因为在此索引之前的日志不需要执行重放操作，因此也不需要被 WAL 日志管理。快照的索引数据一般存储在日志目录下。
 func (rc *raftNode) maybeTriggerSnapshot(applyDoneC <-chan struct{}) {
+
 	// 1. 只有当前已经提交应用的日志的数据达到 rc.snapCount 才会触发快照操作
 	if rc.appliedIndex-rc.snapshotIndex <= rc.snapCount {
 		return
@@ -543,7 +542,6 @@ func (rc *raftNode) maybeTriggerSnapshot(applyDoneC <-chan struct{}) {
 	//
 	// [重要]
 	// 如果 applyDoneC 非 nil ，意味着有 entries 等待应用层 apply ，需要等待其应用完，否则快照中的数据可能不一致。
-	//
 	//
 	// 需要注意到，在 publishEntries 中，只要把 entries 投递到 commitC 管道，就直接更新 rc.appliedIndex ，没等待应用层回复 apply done 通知。
 	// 这个过程中，可能存在不一致。而执行 snapshot 会将 rc.appliedIndex 和状态机快照一同落盘，就会导致一致性问题。
