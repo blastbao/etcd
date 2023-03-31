@@ -396,18 +396,6 @@ func (rc *raftNode) writeError(err error) {
 	rc.node.Stop()
 }
 
-
-// [重要]
-//
-// 应用程序启动时，第一步便是进行日志重放，构建内存状态机。
-// 日志又总是和 snapshot 搅和在一起的，因此，构建内存状态机必须是 Snapshot + WAL 一起。
-//
-// 最关键的问题是：由于糅合了 snapshot ，我们需要明确需要重放哪些日志。
-// 在重放日志时，应用程序首先会 load 最新的 snapshot ，
-// 然后根据这个 snapshot 的日志 index 在 WAL 目录下查找该 index 之后的日志，
-// 接下来只需要回放这些日志即可。
-
-
 // startRaft() 函数核心步骤：
 //	- 创建 Snapshotter，并将该 Snapshotter 实例返回给上层模块
 //	- 创建 WAL 实例，然后加载快照并回放 WAL 日志
