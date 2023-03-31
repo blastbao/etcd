@@ -270,7 +270,16 @@ func (rc *raftNode) publishEntries(ents []raftpb.Entry) (<-chan struct{}, bool) 
 	}
 
 	// after commit, update appliedIndex
-	// 只要投递到 commitC 中，就认为是已经提交，可以更新 appliedIndex 。
+	// 只要投递到 commitC 中，就更新 appliedIndex 。
+	//
+	// 因为这些 committed entries 可能还未被应用到 state machine ，所以可能造成 state machine 和 appliedIndex 的不一致。
+	//
+	// 快照 snapshot 中会包含 <state machine, applied index> ，如果此时执行快照，这种不一致可能导致宕机重启后，系统处于错误状态。
+	// 所以，在执行 snapshot 前会等待所有 committed entries 执行完毕，系统处于一致状态后再操作。
+	//
+	// 如果不执行 snapshot ，那么完全不用 care 应用层是否已经 applied ，因为即便宕机，最近的 snapshot 也是正确的。
+	//
+	// 因此，出于性能的考虑，这里直接更新，在有需要的地方（快照）再等待 applyDoneC 通知。
 	rc.appliedIndex = ents[len(ents)-1].Index
 
 	return applyDoneC, true
@@ -545,7 +554,20 @@ func (rc *raftNode) maybeTriggerSnapshot(applyDoneC <-chan struct{}) {
 
 	// wait until all committed entries are applied (or server is closed)
 	//
-	// 如果 applyDoneC 非 nil ，意味着有 entries 等待应用层 apply ，需要等待其应用完，否则快照中的数据可能不全。
+	// [重要]
+	// 如果 applyDoneC 非 nil ，意味着有 entries 等待应用层 apply ，需要等待其应用完，否则快照中的数据可能不一致。
+	//
+	//
+	// 需要注意到，在 publishEntries 中，只要把 entries 投递到 commitC 管道，就直接更新 rc.appliedIndex ，没等待应用层回复 apply done 通知。
+	// 这个过程中，可能存在不一致。而执行 snapshot 会将 rc.appliedIndex 和状态机快照一同落盘，就会导致一致性问题。
+	//
+	// 如果在 publishEntries 执行后、状态机应用前，未发生 snapshot ，若此时宕机，内存最新的 rc.appliedIndex 会丢失，
+	// 磁盘中 appliedIndex 和状态机仍旧是一致的，重启后会从之前的快照中加载并 redo + reapply，没有任何问题。
+	//
+	// 如果在 publishEntries 执行后、状态机应用前，发生 snapshot ，此时的快照和 appliedIndex 是不一致的，若此时宕机，
+	// 重启后加载的数据是错误的。
+	//
+	// 所以，必须等待 committed entries 提交后，state machine 和 appliedIndex 一致的情况下，执行快照操作。
 	if applyDoneC != nil {
 		select {
 		case <-applyDoneC:
