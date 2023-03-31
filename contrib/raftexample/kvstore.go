@@ -116,17 +116,18 @@ func (s *kvstore) readCommits(commitC <-chan *commit, errorC <-chan error) {
 	//
 	// 可以看到，kvstore 中基本上没有多少与 raft 相关的处理逻辑，大部分代码是对键值存储抽象本身的实现。
 	for commit := range commitC {
-		// 1. 接收到的 commit 为 nil，从快照中加载数据
+
+		// 1. 接收到的 commit 为 nil，意味这接收到新快照，需要加载快照
 		if commit == nil {
 			// signaled to load snapshot
-			// 从底层 raft 加载数据
+			// 读取最新快照
 			snapshot, err := s.loadSnapshot()
 			if err != nil {
 				log.Panic(err)
 			}
+			// 若快照存在则加载到状态机
 			if snapshot != nil {
 				log.Printf("loading snapshot at term %d and index %d", snapshot.Metadata.Term, snapshot.Metadata.Index)
-				// 将之前某时刻快照重新设置为状态机目前的状态
 				if err := s.recoverFromSnapshot(snapshot.Data); err != nil {
 					log.Panic(err)
 				}
@@ -147,6 +148,8 @@ func (s *kvstore) readCommits(commitC <-chan *commit, errorC <-chan error) {
 			s.kvStore[dataKv.Key] = dataKv.Val
 			s.mu.Unlock()
 		}
+
+		// 3. 告知已应用
 		close(commit.applyDoneC)
 	}
 
