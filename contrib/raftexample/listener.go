@@ -39,19 +39,23 @@ func (ln stoppableListener) Accept() (c net.Conn, err error) {
 	connc := make(chan *net.TCPConn, 1)
 	errc := make(chan error, 1)
 	go func() {
+		// 建立连接
 		tc, err := ln.AcceptTCP()
 		if err != nil {
 			errc <- err
 			return
 		}
+		// 返回连接
 		connc <- tc
 	}()
+
 	select {
 	case <-ln.stopc:
 		return nil, errors.New("server stopped")
 	case err := <-errc:
 		return nil, err
 	case tc := <-connc:
+		// baohuo
 		tc.SetKeepAlive(true)
 		tc.SetKeepAlivePeriod(3 * time.Minute)
 		return tc, nil
