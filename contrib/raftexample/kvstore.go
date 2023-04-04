@@ -86,6 +86,7 @@ func (s *kvstore) Lookup(key string) (string, bool) {
 
 // Propose 序列化 k-v pair 并发送到 proposeC 通道，proposeC 会在 RaftNode 中进行处理。
 func (s *kvstore) Propose(k string, v string) {
+	// 序列化 k-v
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(kv{k, v}); err != nil {
 		log.Fatal(err)

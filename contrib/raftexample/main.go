@@ -74,6 +74,7 @@ func main() {
 		return kvs.getSnapshot()
 	}
 
+	//
 	commitC, errorC, snapshotterReady := newRaftNode(
 		*id,
 		strings.Split(*cluster, ","),
@@ -83,7 +84,7 @@ func main() {
 		confChangeC,
 	)
 
-	// 创建 kv 存储，它也扮演着 raft 状态机的角色。
+	// 创建 kv 存储，它扮演着 raft 状态机的角色，也即 raft-lib 的应用层。
 	//
 	// 参数除 snapshotterReady 外，proposeC、commitC、errorC 均为管道，其中 propseC 为输入管道，commitC 和 errorC 为输出管道。
 	// 可以推断出，kvstore 会通过 proposeC 与 raft 模块交互，并通过 commitC 与 errorC 接收来自 raft 模块的消息。

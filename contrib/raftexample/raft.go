@@ -51,7 +51,6 @@ type commit struct {
 //	- 管理快照数据
 //	- 管理逻辑时钟
 //	- 将 etcd-raft 模块返回的待发送消息通过网络组建发送到指定节点
-//
 type raftNode struct {
 	proposeC    <-chan string            // proposed messages (k,v)
 	confChangeC <-chan raftpb.ConfChange // proposed cluster config changes
@@ -124,6 +123,7 @@ func newRaftNode(
 	// errorC  用于 raft 向用户代码暴露 raft 库的处理异常
 	errorC := make(chan error)
 
+	//
 	rc := &raftNode{
 		proposeC:    proposeC,		// 用户代码向 raft 提交写请求 Propose
 		confChangeC: confChangeC,	//
@@ -444,10 +444,11 @@ func (rc *raftNode) startRaft() {
 		MaxUncommittedEntriesSize: 1 << 30,
 	}
 
-	// 4. 初始化底层的 etcd-raft 模块，这里会根据 WAL 日志的回放情况，判断当前节点是首次启动还是重新启动
+	// 4. 初始化底层的 etcd-raft 模块，这里会根据 WAL 日志的回放情况，判断当前节点是首次启动还是重新启动。
 	//
-	// 如果存在 wal 日志，或者节点是加入已有集群（非第一次启动）
+	// rc.node 是应用层与 raft-lib 交互的接口。
 	if oldwal || rc.join {
+		// 如果存在 wal 日志，或者节点是加入已有集群（非第一次启动），则重启
 		rc.node = raft.RestartNode(c)
 	} else {
 		// 启动底层 raft 的协议实体 node
@@ -525,7 +526,8 @@ var snapshotCatchUpEntriesN uint64 = 10000
 
 // [快照管理]
 // 快照(snapshot)本质是对日志进行压缩，它是对状态机某一时刻（或者日志的某一索引）的状态的保存。
-// 快照操作可以缓解日志文件无限制增长的问题，一旦达日志项达到某一临界值，可以将内存的状态数据进行压缩成为 snapshot 文件并存储在快照目录。
+// 快照操作可以缓解日志文件无限制增长的问题，一旦达日志项达到某一临界值，
+// 可以将内存的状态数据进行压缩成为 snapshot 文件并存储在快照目录。
 //
 // 生成的快照包含两个方面的数据：
 //	- 一个显然是实际的内存状态机中的数据，一般将它存储到当前的快照目录中。
